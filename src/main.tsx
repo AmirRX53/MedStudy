@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ThemeProvider } from './contexts/ThemeContext.tsx'
 import { LanguageProvider } from './contexts/LanguageContext.tsx'
 import { SubjectsProvider } from './contexts/SubjectsContext.tsx'
@@ -13,15 +14,17 @@ async function bootstrap() {
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <ThemeProvider>
-        <LanguageProvider>
-          <DiseasesProvider>
-            <SubjectsProvider>
-              <App />
-            </SubjectsProvider>
-          </DiseasesProvider>
-        </LanguageProvider>
-      </ThemeProvider>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <LanguageProvider>
+            <DiseasesProvider>
+              <SubjectsProvider>
+                <App />
+              </SubjectsProvider>
+            </DiseasesProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
     </StrictMode>,
   )
 }

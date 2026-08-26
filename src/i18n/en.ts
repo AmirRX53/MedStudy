@@ -69,7 +69,7 @@ export const en = {
   feature3: 'Flashcard review with scoring and hard keyword tracking',
   feature4: '5 quiz types: Multiple Choice, True/False, Fill Blank, Match, Multi-Select',
   feature5: 'Statistics dashboard with per-subject/chapter/disease insights',
-  version: 'Version 1.0',
+  version: 'Version 1.0.1',
   madeWith: 'Made with ❤️ for medical students',
   copyright: '© 2026 MedStudy. All rights reserved.',
 
