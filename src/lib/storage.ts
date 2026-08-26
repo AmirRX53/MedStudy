@@ -1,7 +1,7 @@
 const desktop = typeof window !== 'undefined' ? window.medStudyDesktop : undefined;
 const STORAGE_PREFIX = 'medstudy-';
 const LEGACY_KEYS: Record<string, string> = {
-  'medistudy-theme': 'medstudy-theme',
+  // 'medistudy-theme': 'medstudy-theme',
   'medstudy-language': 'medstudy-lang',
 };
 
@@ -116,11 +116,26 @@ async function migratePreferences(desktopData: Record<string, string>): Promise<
   }
 }
 
+// Preference values are stored as plain strings (not JSON), so they must be
+// exported verbatim. JSON-parsing them would turn "3" into the number 3 and
+// break the backup round-trip.
+const RAW_PREFERENCE_KEYS = new Set([
+  'medstudy-theme',
+  'medstudy-accent',
+  'medstudy-lang',
+  'medstudy-language',
+  'medstudy-quizzes-completed',
+]);
+
 export function readStoredData(): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const key of localStorageKeys()) {
     const raw = localStorage.getItem(key);
     if (raw === null) continue;
+    if (RAW_PREFERENCE_KEYS.has(key)) {
+      data[key] = raw;
+      continue;
+    }
     try {
       data[key] = JSON.parse(raw);
     } catch {
@@ -153,8 +168,23 @@ export function validateStoredData(data: unknown): data is JsonRecord {
   const hardKeywords = data['medstudy-hard-keywords'];
   if (hardKeywords !== undefined && (!Array.isArray(hardKeywords) || hardKeywords.some(keyword => typeof keyword !== 'string'))) return false;
 
-  const preferenceKeys = ['medstudy-theme', 'medstudy-accent', 'medstudy-lang', 'medstudy-language', 'medstudy-quizzes-completed'];
-  return preferenceKeys.every(key => data[key] === undefined || typeof data[key] === 'string');
+  const reviewState = data['medstudy-review-state'];
+  if (reviewState !== undefined && (!isRecord(reviewState) || Object.values(reviewState).some(entry =>
+    !isRecord(entry) || typeof entry.due !== 'number' || typeof entry.interval !== 'number'
+      || typeof entry.ease !== 'number' || typeof entry.reps !== 'number' || typeof entry.lapses !== 'number'
+  ))) return false;
+
+  const preferenceKeys = ['medstudy-theme', 'medstudy-accent', 'medstudy-lang', 'medstudy-language'];
+  const preferencesValid = preferenceKeys.every(key => data[key] === undefined || typeof data[key] === 'string');
+
+  // Accept both the stored string form and the number form produced by older
+  // exports, so backups made before this fix still import.
+  const quizzes = data['medstudy-quizzes-completed'];
+  const quizzesValid = quizzes === undefined
+    || typeof quizzes === 'string'
+    || (typeof quizzes === 'number' && Number.isFinite(quizzes));
+
+  return preferencesValid && quizzesValid;
 }
 
 export async function replaceStoredData(data: JsonRecord): Promise<void> {
@@ -165,7 +195,7 @@ export async function replaceStoredData(data: JsonRecord): Promise<void> {
   delete normalized['medstudy-language'];
 
   const serialized: Record<string, string> = {};
-  for (const [key, value] of Object.entries(data)) {
+  for (const [key, value] of Object.entries(normalized)) {
     if (!key.startsWith(STORAGE_PREFIX) || value === undefined) continue;
     serialized[key] = typeof value === 'string' ? value : JSON.stringify(value);
   }
@@ -195,4 +225,19 @@ export function removeDiseaseReviewData(diseaseIds: string[]): void {
     }
   }
   if (changed) saveStored('medstudy-card-scores', scores);
+
+  // Keep spaced-repetition state in sync so deleted cards stop being due.
+  const reviewState = loadStored<Record<string, unknown>>(
+    'medstudy-review-state',
+    {},
+    isRecord,
+  );
+  let reviewChanged = false;
+  for (const id of diseaseIds) {
+    if (id in reviewState) {
+      delete reviewState[id];
+      reviewChanged = true;
+    }
+  }
+  if (reviewChanged) saveStored('medstudy-review-state', reviewState);
 }

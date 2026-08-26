@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { readStoredData, replaceStoredData, clearStoredData, validateStoredData } from '../lib/storage';
+import { seedDemoData } from '../lib/seedData';
 import type { AccentColor } from '../types';
 
 const navItems = [
@@ -202,6 +203,17 @@ export function Header() {
                       }}
                     >
                       🗑️ {t('deleteAllData')}
+                    </button>
+
+                    <button
+                      className="btn btn-ghost btn-sm settings-data-btn"
+                      onClick={() => {
+                        if (!confirm(t('confirmLoadSample'))) return;
+                        seedDemoData();
+                        window.location.reload();
+                      }}
+                    >
+                      🧪 {t('loadSampleData')}
                     </button>
                   </div>
                 </div>

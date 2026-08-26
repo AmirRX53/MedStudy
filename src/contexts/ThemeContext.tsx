@@ -37,7 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    savePreference('medistudy-accent', accentColor);
+    savePreference('medstudy-accent', accentColor);
     document.documentElement.style.setProperty('--accent', accentColorMap[accentColor]);
     // Generate lighter versions
     const hex = accentColorMap[accentColor];

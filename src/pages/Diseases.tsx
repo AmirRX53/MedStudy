@@ -289,7 +289,7 @@ export default function DiseasesPage() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
 
-      const rows = json.map(row => {
+      const mappedRows = json.map(row => {
         const name = String(row.name || row['Name'] || '').trim();
         const subjectName = String(row.subject || row['Subject'] || '').trim();
         const chapterName = String(row.chapter || row['Chapter'] || '').trim();
@@ -301,12 +301,14 @@ export default function DiseasesPage() {
           }
         });
         return { name, subjectName, chapterName, keywords };
-      }).filter(r => r.name && r.subjectName && r.chapterName);
+      });
+      const rows = mappedRows.filter(r => r.name && r.subjectName && r.chapterName);
 
       const result: ImportResult = importDiseases(rows, subjects, {
         createSubject: (name) => addSubject(name),
         createChapter: (subjectId, name) => addChapter(subjectId, name),
       });
+      result.skipped = mappedRows.length - rows.length;
       const msg = t('importResult')
         .replace('{{imported}}', String(result.imported))
         .replace('{{updated}}', String(result.updated))

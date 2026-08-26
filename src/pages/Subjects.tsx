@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSubjects } from '../contexts/SubjectsContext';
+import { useDiseases } from '../contexts/DiseasesContext';
 import type { Subject, Chapter } from '../types';
 import {
   DndContext,
@@ -32,6 +33,7 @@ function SortableChapter({
   onCancelEdit,
   onDelete,
   onNavigate,
+  cardCount,
 }: {
   chapter: Chapter;
   isEditing: boolean;
@@ -42,6 +44,7 @@ function SortableChapter({
   onCancelEdit: () => void;
   onDelete: () => void;
   onNavigate: () => void;
+  cardCount: number;
 }) {
   const { t } = useLanguage();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: chapter.id });
@@ -65,6 +68,7 @@ function SortableChapter({
       ) : (
         <>
           <span className="chapter-name chapter-link" onClick={onNavigate}>{chapter.name}</span>
+          <span className="card-count-badge" title={`${cardCount} 🃏`}>{cardCount} 🃏</span>
           <div className="chapter-actions">
             <button className="icon-btn small" onClick={onStartEdit} title={t('editChapter')}>✏️</button>
             <button className="icon-btn small danger" onClick={onDelete} title={t('delete')}>🗑️</button>
@@ -90,6 +94,8 @@ function SortableSubject({
 }) {
   const { t } = useLanguage();
   const { addChapter, updateChapter, deleteChapter, reorderChapters } = useSubjects();
+  const { diseases } = useDiseases();
+  const totalCards = diseases.filter(d => d.subjectId === subject.id).length;
   const [expanded, setExpanded] = useState(false);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
   const [chapterName, setChapterName] = useState('');
@@ -141,6 +147,7 @@ function SortableSubject({
         <span className="chapter-count">
           {subject.chapters.length} {t('chapters').toLowerCase()}
         </span>
+        <span className="card-count-badge" title={`${totalCards} 🃏`}>{totalCards} 🃏</span>
         <div className="subject-actions">
           <button className="icon-btn" onClick={() => onEdit(subject)} title={t('editSubject')}>✏️</button>
           <button className="icon-btn danger" onClick={() => onDelete(subject.id)} title={t('deleteSubject')}>🗑️</button>
@@ -166,6 +173,7 @@ function SortableSubject({
                   onCancelEdit={() => { setEditingChapterId(null); setChapterName(''); }}
                   onDelete={() => deleteChapter(subject.id, chapter.id)}
                   onNavigate={() => onNavigateToChapter(subject.id, chapter.id)}
+                  cardCount={diseases.filter(d => d.chapterId === chapter.id).length}
                 />
               ))}
             </SortableContext>

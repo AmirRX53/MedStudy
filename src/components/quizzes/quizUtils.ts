@@ -6,6 +6,7 @@ import {
   loadPreference,
   savePreference,
 } from '../../lib/storage';
+import { recordReviewGrade } from '../../lib/srs';
 
 function quizText(language: Language, key: TranslationKey, values: Record<string, string> = {}): string {
   let text = translations[language][key] || translations.en[key];
@@ -350,6 +351,9 @@ export function updateDiseaseScore(diseaseId: string, correct: boolean): void {
     average: (existing.average * existing.count + points) / count,
   };
   saveStored('medstudy-card-scores', scores);
+  // Feed the scheduler too: a correct quiz answer counts as Good, a wrong one
+  // as Again so the card is rescheduled for an early review.
+  recordReviewGrade(diseaseId, correct ? 'good' : 'again');
 }
 
 export function incrementQuizzesCompleted(): void {
@@ -367,6 +371,8 @@ export function updateDiseaseScoreFractional(diseaseId: string, fraction: number
     average: (existing.average * existing.count + points) / count,
   };
   saveStored('medstudy-card-scores', scores);
+  // Full selection is a Good review; partial credit is Hard; a miss is Again.
+  recordReviewGrade(diseaseId, fraction >= 1 ? 'good' : fraction >= 0.5 ? 'hard' : 'again');
 }
 
 export function generateMultiSelect(

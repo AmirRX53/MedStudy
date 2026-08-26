@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSubjects } from '../contexts/SubjectsContext';
 import { useDiseases } from '../contexts/DiseasesContext';
+import { loadReviewState, type ReviewState } from '../lib/srs';
 
 // ─── Tooltip Component ────────────────────────────────────────────────────────
 
@@ -139,6 +140,7 @@ export default function StatisticsPage() {
   const [activeTab, setActiveTab] = useState<StatsTab>('general');
   const [cardScores, setCardScores] = useState<Record<string, { count: number; average: number }>>({});
   const [hardKeywords, setHardKeywords] = useState<Set<string>>(new Set());
+  const [reviewState, setReviewState] = useState<Record<string, ReviewState>>({});
 
   useEffect(() => {
     try {
@@ -146,6 +148,7 @@ export default function StatisticsPage() {
       if (scores) setCardScores(JSON.parse(scores));
       const hk = localStorage.getItem('medstudy-hard-keywords');
       if (hk) setHardKeywords(new Set(JSON.parse(hk)));
+      setReviewState(loadReviewState());
     } catch { /* ignore */ }
   }, []);
 
@@ -203,6 +206,11 @@ export default function StatisticsPage() {
     return stats;
   }, [subjects, diseases, cardScores]);
 
+  const formatDueDate = (ts: number) => {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
   const diseaseStats = useMemo(() => {
     return diseases.map(disease => {
       const subject = subjects.find(s => s.id === disease.subjectId);
@@ -212,10 +220,11 @@ export default function StatisticsPage() {
       return {
         id: disease.id, name: disease.name, subjectName: subject?.name || '?', chapterName: chapter?.name || '?',
         keywords: disease.keywords.length, hardKeywords: hardKwCount, avgScore: score?.average || 0, reviewed: score?.count || 0,
+        due: reviewState[disease.id]?.due ?? 0,
         path: `${subject?.name || '?'} › ${chapter?.name || '?'}`,
       };
     });
-  }, [diseases, subjects, cardScores, hardKeywords]);
+  }, [diseases, subjects, cardScores, hardKeywords, reviewState]);
 
   // ─── Top/Low Scorers (all scored) ──────────────────────────────────────────
 
@@ -267,7 +276,7 @@ export default function StatisticsPage() {
     <div className="stats-ranks-grid">
       {topItems.length > 0 && (
         <div className="card stats-section">
-          <h3 className="section-title">{icon} {t('topScorers')} — {entityLabel}</h3>
+          <h3 className="section-title">{icon} {entityLabel}: {t('topScorers')}</h3>
           {topItems.map((item, i) => (
             <RankItem key={item.id} name={item.name} score={item.avgScore} rank={i + 1} maxScore={3}
               tooltip={tooltipFn(item)} />
@@ -276,7 +285,7 @@ export default function StatisticsPage() {
       )}
       {lowItems.length > 0 && (
         <div className="card stats-section">
-          <h3 className="section-title">{icon} {t('lowScorers')} — {entityLabel}</h3>
+          <h3 className="section-title">{icon} {entityLabel}: {t('lowScorers')}</h3>
           {lowItems.map((item, i) => (
             <RankItem key={item.id} name={item.name} score={item.avgScore} rank={i + 1} maxScore={3}
               tooltip={tooltipFn(item)} />
@@ -454,18 +463,19 @@ export default function StatisticsPage() {
             <h3 className="section-title">{t('perDisease')}</h3>
             {diseaseStats.length === 0 && <p className="empty-hint">{t('noDataYet')}</p>}
             <div className="stats-table">
-              <div className="stats-table-header stats-table-7">
+              <div className="stats-table-header stats-table-8">
                 <SortHeader label={t('name')} sortKey="name" activeSort={disSort} dir={disDir} onSort={disSortReq} />
                 <SortHeader label={t('subject')} sortKey="subjectName" activeSort={disSort} dir={disDir} onSort={disSortReq} />
                 <SortHeader label={t('chapter')} sortKey="chapterName" activeSort={disSort} dir={disDir} onSort={disSortReq} />
                 <SortHeader label={t('keywordsCountLabel')} sortKey="keywords" activeSort={disSort} dir={disDir} onSort={disSortReq} />
                 <SortHeader label={t('hardKeywordsCount')} sortKey="hardKeywords" activeSort={disSort} dir={disDir} onSort={disSortReq} />
                 <SortHeader label={t('avgScore')} sortKey="avgScore" activeSort={disSort} dir={disDir} onSort={disSortReq} />
+                <SortHeader label={t('dueColumn')} sortKey="due" activeSort={disSort} dir={disDir} onSort={disSortReq} />
                 <span>{t('score')}</span>
               </div>
               {sortedDiseases.map(d => (
                 <TooltipWrap key={d.id} tooltip={t('tooltipDiseaseStats').replace('{{name}}', d.name).replace('{{path}}', d.path).replace('{{keywords}}', String(d.keywords)).replace('{{hardKeywords}}', String(d.hardKeywords)).replace('{{reviewed}}', String(d.reviewed))}>
-                  <div className="stats-table-row stats-table-7">
+                  <div className="stats-table-row stats-table-8">
                     <span className="stats-name">{d.name}</span>
                     <span className="stats-secondary">{d.subjectName}</span>
                     <span className="stats-secondary">{d.chapterName}</span>
@@ -473,6 +483,9 @@ export default function StatisticsPage() {
                     <span style={{ color: d.hardKeywords > 0 ? '#ef4444' : 'var(--text-muted)' }}>{d.hardKeywords}</span>
                     <span style={{ color: d.avgScore > 0 ? scoreColor(d.avgScore) : 'var(--text-muted)' }}>
                       {d.avgScore > 0 ? d.avgScore.toFixed(1) : '—'}
+                    </span>
+                    <span className="stats-secondary">
+                      {d.due > 0 ? formatDueDate(d.due) : '—'}
                     </span>
                     <span className="stats-bar-cell">
                       <ProgressBar value={d.avgScore} max={3} color={scoreColor(d.avgScore)} />

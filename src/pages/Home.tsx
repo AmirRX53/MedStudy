@@ -204,7 +204,7 @@ export default function HomePage() {
               <span className="home-shortcut-title">{sc.title}</span>
               <span className="home-shortcut-desc">{sc.desc}</span>
             </div>
-            <span className="home-shortcut-arrow">→</span>
+            <span className="home-shortcut-arrow">←</span>
           </div>
         ))}
       </div>

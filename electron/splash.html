@@ -36,14 +36,11 @@
       }
 
       .logo {
-        width: 72px;
-        height: 72px;
-        display: grid;
-        place-items: center;
+        width: 88px;
+        height: 88px;
+        object-fit: contain;
         border-radius: 22px;
-        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
         box-shadow: 0 16px 38px rgba(59, 130, 246, 0.3);
-        font-size: 36px;
       }
 
       h1 {
@@ -73,7 +70,7 @@
   </head>
   <body>
     <main class="splash" aria-label="MedStudy is loading">
-      <div class="logo" aria-hidden="true">🏥</div>
+      <img class="logo" src="../dist/icon.png" alt="" aria-hidden="true" />
       <h1>MedStudy</h1>
       <p>Preparing your study space…</p>
       <div class="spinner" aria-hidden="true"></div>

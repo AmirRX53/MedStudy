@@ -4,6 +4,23 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useSubjects } from "../contexts/SubjectsContext";
 import { useDiseases } from "../contexts/DiseasesContext";
 import { loadStored, saveStored } from "../lib/storage";
+import {
+  gradeCard,
+  isDue,
+  loadReviewState,
+  nextIntervals,
+  saveReviewState,
+  type Grade,
+  type ReviewState,
+} from "../lib/srs";
+import type { Disease } from "../types";
+
+const GRADE_ICONS: Record<Grade, string> = {
+  again: "🔁",
+  hard: "😰",
+  good: "🙂",
+  easy: "😊",
+};
 
 // ─── Flashcard Component ──────────────────────────────────────────────────────
 
@@ -19,7 +36,8 @@ function Flashcard({
   hardKeywords,
   onToggleHard,
   averageScore,
-  onScore,
+  onGrade,
+  intervalPreview,
 }: {
   disease: { id: string; name: string; keywords: string[] };
   subjectName: string;
@@ -32,7 +50,8 @@ function Flashcard({
   hardKeywords: Set<string>;
   onToggleHard: (keyword: string) => void;
   averageScore: number;
-  onScore: (score: number) => void;
+  onGrade: (grade: Grade) => void;
+  intervalPreview: Record<Grade, number>;
 }) {
   const { t } = useLanguage();
 
@@ -42,6 +61,22 @@ function Flashcard({
       : direction === "right"
         ? "card-slide-right"
         : "";
+
+  const gradeButtons: Grade[] = ["again", "hard", "good", "easy"];
+  const gradeLabels: Record<Grade, string> = {
+    again: t("gradeAgain"),
+    hard: t("gradeHard"),
+    good: t("gradeGood"),
+    easy: t("gradeEasy"),
+  };
+  const gradeClasses: Record<Grade, string> = {
+    again: "grade-btn-again",
+    hard: "grade-btn-hard",
+    good: "grade-btn-good",
+    easy: "grade-btn-easy",
+  };
+  const formatInterval = (days: number) =>
+    t("daysAhead").replace("{{count}}", String(days));
 
   return (
     <div
@@ -110,36 +145,87 @@ function Flashcard({
               {subjectName} › {chapterName}
             </div>
           )}
-          {/* Score Buttons */}
+          {/* Grade Buttons */}
           <div
-            className="flashcard-score-buttons"
+            className="flashcard-grade-buttons"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              className="score-btn score-btn-easy"
-              onClick={() => onScore(3)}
-              title={t("easyTooltip")}
-              aria-label={t("easyTooltip")}
-            >
-              😊
-            </button>
-            <button
-              className="score-btn score-btn-medium"
-              onClick={() => onScore(2)}
-              title={t("mediumTooltip")}
-              aria-label={t("mediumTooltip")}
-            >
-              🤔
-            </button>
-            <button
-              className="score-btn score-btn-hard"
-              onClick={() => onScore(1)}
-              title={t("hardTooltip")}
-              aria-label={t("hardTooltip")}
-            >
-              😰
-            </button>
+            {gradeButtons.map((grade) => (
+              <button
+                key={grade}
+                className={`grade-btn ${gradeClasses[grade]}`}
+                onClick={() => onGrade(grade)}
+                title={gradeLabels[grade]}
+                aria-label={gradeLabels[grade]}
+              >
+                <span className="grade-main">
+                  <span className="grade-icon">{GRADE_ICONS[grade]}</span>
+                  <span className="grade-label">{gradeLabels[grade]}</span>
+                </span>
+                <span className="grade-interval">
+                  {formatInterval(intervalPreview[grade])}
+                </span>
+              </button>
+            ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Flashcard Help Modal ─────────────────────────────────────────────────────
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
+
+  // Close with the Escape key, matching the app's modal conventions.
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  const sections: { icon: string; title: string; text: string }[] = [
+    { icon: "🃏", title: t("helpBasics"), text: t("helpBasicsText") },
+    { icon: "⭐", title: t("helpScoring"), text: t("helpScoringText") },
+    { icon: "🗓️", title: t("helpSchedule"), text: t("helpScheduleText") },
+    { icon: "🔔", title: t("helpSessions"), text: t("helpSessionsText") },
+    { icon: "📌", title: t("helpHardKeywords"), text: t("helpHardKeywordsText") },
+    { icon: "🧭", title: t("helpNavigation"), text: t("helpNavigationText") },
+    { icon: "🔍", title: t("helpFilters"), text: t("helpFiltersText") },
+    { icon: "⌨️", title: t("helpKeyboard"), text: t("helpKeyboardText") },
+    { icon: "🔗", title: t("helpRelated"), text: t("helpRelatedText") },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal modal-lg help-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("helpFlashcards")}
+      >
+        <h3 className="modal-title">❓ {t("helpFlashcards")}</h3>
+        <p className="help-modal-intro">{t("helpIntro")}</p>
+        <div className="help-modal-body">
+          {sections.map((s) => (
+            <div className="help-modal-section" key={s.title}>
+              <div className="help-modal-section-icon">{s.icon}</div>
+              <div className="help-modal-section-content">
+                <h4 className="help-modal-section-title">{s.title}</h4>
+                <p className="help-modal-section-text">{s.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="help-modal-footer">
+          <button className="btn btn-primary" onClick={onClose}>
+            {t("helpGotIt")}
+          </button>
         </div>
       </div>
     </div>
@@ -149,7 +235,7 @@ function Flashcard({
 // ─── Main Flashcards Page ─────────────────────────────────────────────────────
 
 export default function FlashcardsPage() {
-  const { t } = useLanguage();
+  const { t, dir } = useLanguage();
   const { subjects } = useSubjects();
   const { diseases } = useDiseases();
   const [searchParams] = useSearchParams();
@@ -184,8 +270,26 @@ export default function FlashcardsPage() {
       return {};
     }
   });
+  const [reviewState, setReviewState] = useState<Record<string, ReviewState>>(
+    () => {
+      try {
+        return loadReviewState();
+      } catch {
+        return {};
+      }
+    },
+  );
+
+  // Spaced-repetition session state.
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionQueue, setSessionQueue] = useState<string[]>([]);
+  const [sessionIndex, setSessionIndex] = useState(0);
+  const [sessionReviewed, setSessionReviewed] = useState(0);
+  const [sessionDone, setSessionDone] = useState(false);
+  const [requeued, setRequeued] = useState<Set<string>>(new Set());
 
   const isTransitioning = useRef(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Persist hard keywords to localStorage
   useEffect(() => {
@@ -197,15 +301,10 @@ export default function FlashcardsPage() {
     saveStored("medstudy-card-scores", cardScores);
   }, [cardScores]);
 
-  const scoreCard = useCallback((diseaseId: string, score: number) => {
-    setCardScores((prev) => {
-      const existing = prev[diseaseId] || { count: 0, average: 0 };
-      const previousTotal = existing.average * existing.count;
-      const newCount = existing.count + 1;
-      const newAverage = (previousTotal + score) / newCount;
-      return { ...prev, [diseaseId]: { count: newCount, average: newAverage } };
-    });
-  }, []);
+  // Persist spaced-repetition state to localStorage
+  useEffect(() => {
+    saveReviewState(reviewState);
+  }, [reviewState]);
 
   const toggleHardKeyword = useCallback((keyword: string) => {
     setHardKeywords((prev) => {
@@ -257,10 +356,16 @@ export default function FlashcardsPage() {
     return filteredDiseases;
   }, [filteredDiseases, shuffledOrder]);
 
-  // Reset shuffle when filters change
+  // Reset shuffle and exit any review session when filters change
   useEffect(() => {
     setShuffledOrder([]);
     setCurrentIndex(0);
+    setSessionActive(false);
+    setSessionDone(false);
+    setSessionQueue([]);
+    setSessionIndex(0);
+    setSessionReviewed(0);
+    setRequeued(new Set());
   }, [filterSubject, filterChapter, searchQuery]);
 
   // Clamp index when display list changes
@@ -273,7 +378,7 @@ export default function FlashcardsPage() {
   // Reset flip when changing cards
   useEffect(() => {
     setIsFlipped(false);
-  }, [currentIndex]);
+  }, [currentIndex, sessionIndex]);
 
   const clearFilters = () => {
     setFilterSubject("");
@@ -282,10 +387,104 @@ export default function FlashcardsPage() {
   };
 
   const hasFilters = filterSubject || filterChapter || searchQuery;
-  const currentDisease = displayDiseases[currentIndex];
+
+  // Session deck is the ordered list of due card ids, resolved to diseases.
+  const sessionDiseases = useMemo(() => {
+    return sessionQueue
+      .map((id) => diseases.find((d) => d.id === id))
+      .filter((d): d is Disease => Boolean(d));
+  }, [sessionQueue, diseases]);
+
+  const deck = sessionActive ? sessionDiseases : displayDiseases;
+  const deckIndex = sessionActive ? sessionIndex : currentIndex;
+  const currentDisease = deck[deckIndex];
+
+  // Number of cards currently due (new cards are due immediately).
+  const dueCount = useMemo(() => {
+    const now = Date.now();
+    return filteredDiseases.filter((d) => isDue(reviewState[d.id], now)).length;
+  }, [filteredDiseases, reviewState]);
+
+  const startSession = useCallback(() => {
+    const now = Date.now();
+    const dueIds = filteredDiseases
+      .filter((d) => isDue(reviewState[d.id], now))
+      .map((d) => d.id);
+    if (dueIds.length === 0) return;
+    setSessionQueue(dueIds);
+    setSessionIndex(0);
+    setSessionReviewed(0);
+    setRequeued(new Set());
+    setSessionDone(false);
+    setSessionActive(true);
+    setIsFlipped(false);
+    setDirection("none");
+  }, [filteredDiseases, reviewState]);
+
+  const endSession = useCallback(() => {
+    setSessionActive(false);
+    setSessionDone(false);
+    setSessionQueue([]);
+    setSessionIndex(0);
+    setSessionReviewed(0);
+    setRequeued(new Set());
+  }, []);
+
+  // Preview the next interval in days for each grade on the current card.
+  const intervalPreview = useMemo(() => {
+    const state = currentDisease ? reviewState[currentDisease.id] : undefined;
+    return nextIntervals(state);
+  }, [currentDisease, reviewState]);
+
+  // Grade the current card: update SRS state + legacy score, then advance the
+  // session (re-queueing Again cards) or simply record in browse mode.
+  const gradeCurrent = useCallback(
+    (grade: Grade) => {
+      const disease = currentDisease;
+      if (!disease || (sessionActive && sessionDone)) return;
+
+      const now = Date.now();
+      setReviewState((prev) => ({
+        ...prev,
+        [disease.id]: gradeCard(prev[disease.id], grade, now),
+      }));
+
+      // Keep the legacy 1-3 score scale in sync for stats and quizzes.
+      const legacyScore = grade === "again" ? 1 : grade === "hard" ? 2 : 3;
+      setCardScores((prev) => {
+        const existing = prev[disease.id] || { count: 0, average: 0 };
+        const previousTotal = existing.average * existing.count;
+        const newCount = existing.count + 1;
+        const newAverage = (previousTotal + legacyScore) / newCount;
+        return {
+          ...prev,
+          [disease.id]: { count: newCount, average: newAverage },
+        };
+      });
+
+      if (sessionActive) {
+        setSessionReviewed((n) => n + 1);
+        const requeue = grade === "again" && !requeued.has(disease.id);
+        if (requeue) {
+          setRequeued((prev) => new Set(prev).add(disease.id));
+          setSessionQueue((prev) => [...prev, disease.id]);
+          setSessionIndex((prev) => prev + 1);
+        } else if (sessionIndex + 1 >= sessionQueue.length) {
+          setSessionDone(true);
+        } else {
+          setSessionIndex((prev) => prev + 1);
+        }
+        setIsFlipped(false);
+        setDirection("right");
+        setTimeout(() => setDirection("none"), 400);
+      }
+    },
+    [currentDisease, sessionActive, sessionDone, sessionIndex, sessionQueue.length, requeued],
+  );
 
   const navigate = useCallback(
     (dir: "prev" | "next") => {
+      if (sessionActive) return;
       if (isTransitioning.current) return;
       if (displayDiseases.length === 0) return;
 
@@ -293,25 +492,28 @@ export default function FlashcardsPage() {
       setDirection(dir === "prev" ? "left" : "right");
       setIsFlipped(false);
 
+      // Swap the card immediately so the name, address, and score update without
+      // delay; the newly mounted card plays the slide-in animation (see the
+      // key={disease.id} on Flashcard below).
+      setCurrentIndex((prev) => {
+        if (dir === "next") {
+          return prev < displayDiseases.length - 1 ? prev + 1 : 0;
+        } else {
+          return prev > 0 ? prev - 1 : displayDiseases.length - 1;
+        }
+      });
+
+      // Release the navigation lock once the slide-in animation completes.
       setTimeout(() => {
-        setCurrentIndex((prev) => {
-          if (dir === "next") {
-            return prev < displayDiseases.length - 1 ? prev + 1 : 0;
-          } else {
-            return prev > 0 ? prev - 1 : displayDiseases.length - 1;
-          }
-        });
-        // Reset direction after animation
-        setTimeout(() => {
-          setDirection("none");
-          isTransitioning.current = false;
-        }, 50);
-      }, 200);
+        setDirection("none");
+        isTransitioning.current = false;
+      }, 400);
     },
-    [displayDiseases.length],
+    [displayDiseases.length, sessionActive],
   );
 
   const shuffle = useCallback(() => {
+    if (sessionActive) return;
     if (displayDiseases.length <= 1) return;
     // Pick a random index that's different from current
     // Shuffle by reordering the filtered diseases array
@@ -329,17 +531,21 @@ export default function FlashcardsPage() {
     });
     setIsFlipped(false);
     setDirection("right");
-    setTimeout(() => {
-      setCurrentIndex(0);
-      setTimeout(() => setDirection("none"), 50);
-    }, 200);
-  }, [displayDiseases.length, filteredDiseases.length]);
+    setCurrentIndex(0);
+    setTimeout(() => setDirection("none"), 400);
+  }, [displayDiseases.length, filteredDiseases.length, sessionActive]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") navigate("next");
-      if (e.key === "ArrowLeft") navigate("prev");
+      // Ignore page shortcuts while the help modal is open.
+      if (helpOpen) return;
+      // Match the visual reading direction: in LTR (English) the left arrow goes
+      // back and the right arrow advances; in RTL (Persian) they are reversed.
+      const prevKey = dir === "rtl" ? "ArrowRight" : "ArrowLeft";
+      const nextKey = dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+      if (e.key === prevKey) navigate("prev");
+      if (e.key === nextKey) navigate("next");
       if ((e.key === " " || e.key === "Enter") && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
         e.preventDefault();
         setIsFlipped((f) => !f);
@@ -347,7 +553,7 @@ export default function FlashcardsPage() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [navigate]);
+  }, [navigate, dir, helpOpen]);
 
   const getSubjectChapter = (d: typeof currentDisease) => {
     const subject = subjects.find((s) => s.id === d.subjectId);
@@ -361,14 +567,117 @@ export default function FlashcardsPage() {
   const zoomIn = () => setZoom((z) => Math.min(z + 0.1, 1.5));
   const zoomOut = () => setZoom((z) => Math.max(z - 0.1, 0.5));
 
+  const progressCurrent = deckIndex + 1;
+  const progressTotal = deck.length;
+
+  const sessionDoneView = (
+    <div className="fc-session-done">
+      <div className="placeholder-icon">🎉</div>
+      <h3 className="fc-session-done-title">{t("sessionComplete")}</h3>
+      <p className="fc-session-done-text">
+        {t("sessionSummary").replace("{{count}}", String(sessionReviewed))}
+      </p>
+      <div className="fc-session-done-actions">
+        <button className="btn btn-primary" onClick={endSession}>
+          {t("endSession")}
+        </button>
+        <button className="btn btn-ghost" onClick={startSession}>
+          {t("startNewSession")}
+        </button>
+      </div>
+    </div>
+  );
+
+  const cardView = (
+    <>
+      {/* Progress Bar */}
+      <div className="fc-progress">
+        <div className="fc-progress-bar">
+          <div
+            className="fc-progress-fill"
+            style={{
+              width: `${progressTotal > 0 ? (progressCurrent / progressTotal) * 100 : 0}%`,
+            }}
+          />
+        </div>
+        <span className="fc-progress-text">
+          {t("progress")
+            .replace("{{current}}", String(progressCurrent))
+            .replace("{{total}}", String(progressTotal))}
+        </span>
+      </div>
+
+      {/* Flashcard */}
+      <div className="fc-stage">
+        {currentDisease && (
+          <Flashcard
+            key={currentDisease.id}
+            disease={currentDisease}
+            subjectName={getSubjectChapter(currentDisease).subjectName}
+            chapterName={getSubjectChapter(currentDisease).chapterName}
+            isFlipped={isFlipped}
+            showAddress={showAddress}
+            zoom={zoom}
+            onClick={() => setIsFlipped((f) => !f)}
+            direction={direction}
+            hardKeywords={hardKeywords}
+            onToggleHard={toggleHardKeyword}
+            averageScore={cardScores[currentDisease.id]?.average || 0}
+            onGrade={gradeCurrent}
+            intervalPreview={intervalPreview}
+          />
+        )}
+      </div>
+
+      {/* Navigation Controls */}
+      <div className="fc-nav">
+        {!sessionActive && (
+          <button
+            className="btn btn-ghost fc-nav-btn fc-nav-edge-btn"
+            onClick={() => navigate("prev")}
+          >
+            <span className="fc-nav-arrow" aria-hidden="true">{dir === "rtl" ? "→" : "←"}</span>
+            <span className="fc-nav-label">{t("previousCard")}</span>
+          </button>
+        )}
+        <button
+          className="btn btn-primary fc-nav-btn"
+          onClick={() => setIsFlipped((f) => !f)}
+        >
+          {isFlipped ? "🔀" : "💡"} {isFlipped ? t("front") : t("back")}
+        </button>
+        {!sessionActive && (
+          <button
+            className="btn btn-ghost fc-nav-btn fc-nav-edge-btn"
+            onClick={() => navigate("next")}
+          >
+            <span className="fc-nav-label">{t("nextCard")}</span>
+            <span className="fc-nav-arrow" aria-hidden="true">{dir === "rtl" ? "←" : "→"}</span>
+          </button>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">🃏 {t("flashcards")}</h2>
 
         {/* Controls Top */}
-        {/* <div className="fc-controls-top"> */}
         <div className="page-header-actions">
+          <button
+            className={`btn btn-sm ${sessionActive ? "btn-primary" : "btn-ghost"}`}
+            onClick={sessionActive ? endSession : startSession}
+            disabled={!sessionActive && dueCount === 0}
+            title={t("dueNowHint")}
+          >
+            🔔{" "}
+            {t("dueNow").replace(
+              "{{count}}",
+              String(sessionActive ? sessionQueue.length - sessionIndex : dueCount),
+            )}
+          </button>
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => setShowAddress((a) => !a)}
@@ -377,6 +686,13 @@ export default function FlashcardsPage() {
           </button>
           <button className="btn btn-ghost btn-sm" onClick={shuffle}>
             🔀 {t("shuffleCards")}
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setHelpOpen(true)}
+            title={t("helpFlashcards")}
+          >
+            ❓ {t("help")}
           </button>
           <div className="fc-zoom-controls">
             <button className="icon-btn" onClick={zoomOut} title={t("zoomOut")}>
@@ -434,8 +750,34 @@ export default function FlashcardsPage() {
         )}
       </div>
 
+      {/* Session Banner */}
+      {sessionActive && !sessionDone && (
+        <div className="fc-session-bar">
+          <span className="fc-session-badge">🔔 {t("sessionLabel")}</span>
+          <span className="fc-session-progress">
+            {t("progress")
+              .replace("{{current}}", String(sessionIndex + 1))
+              .replace("{{total}}", String(sessionQueue.length))}
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={endSession}>
+            {t("endSession")}
+          </button>
+        </div>
+      )}
+
       {/* Card Area */}
-      {displayDiseases.length === 0 ? (
+      {sessionActive && sessionDone ? (
+        sessionDoneView
+      ) : sessionActive ? (
+        sessionDiseases.length === 0 ? (
+          <div className="empty-state">
+            <div className="placeholder-icon">🔔</div>
+            <p className="empty-text">{t("noDueCards")}</p>
+          </div>
+        ) : (
+          cardView
+        )
+      ) : displayDiseases.length === 0 ? (
         <div className="empty-state">
           <div className="placeholder-icon">🃏</div>
           <p className="empty-text">
@@ -445,67 +787,11 @@ export default function FlashcardsPage() {
           </p>
         </div>
       ) : (
-        <>
-          {/* Progress Bar */}
-          <div className="fc-progress">
-            <div className="fc-progress-bar">
-              <div
-                className="fc-progress-fill"
-                style={{
-                  width: `${((currentIndex + 1) / displayDiseases.length) * 100}%`,
-                }}
-              />
-            </div>
-            <span className="fc-progress-text">
-              {t("progress")
-                .replace("{{current}}", String(currentIndex + 1))
-                .replace("{{total}}", String(displayDiseases.length))}
-            </span>
-          </div>
-
-          {/* Flashcard */}
-          <div className="fc-stage">
-            {currentDisease && (
-              <Flashcard
-                disease={currentDisease}
-                subjectName={getSubjectChapter(currentDisease).subjectName}
-                chapterName={getSubjectChapter(currentDisease).chapterName}
-                isFlipped={isFlipped}
-                showAddress={showAddress}
-                zoom={zoom}
-                onClick={() => setIsFlipped((f) => !f)}
-                direction={direction}
-                hardKeywords={hardKeywords}
-                onToggleHard={toggleHardKeyword}
-                averageScore={cardScores[currentDisease.id]?.average || 0}
-                onScore={(score) => scoreCard(currentDisease.id, score)}
-              />
-            )}
-          </div>
-
-          {/* Navigation Controls */}
-          <div className="fc-nav">
-            <button
-              className="btn btn-ghost fc-nav-btn"
-              onClick={() => navigate("prev")}
-            >
-               → {t("previousCard")} 
-            </button>
-            <button
-              className="btn btn-primary fc-nav-btn"
-              onClick={() => setIsFlipped((f) => !f)}
-            >
-              {isFlipped ? "🔀" : "💡"} {isFlipped ? t("front") : t("back")}
-            </button>
-            <button
-              className="btn btn-ghost fc-nav-btn"
-              onClick={() => navigate("next")}
-            >
-              {t("nextCard")} ←
-            </button>
-          </div>
-        </>
+        cardView
       )}
+
+      {/* Help Modal */}
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

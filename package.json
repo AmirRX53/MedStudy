@@ -1,9 +1,9 @@
 {
   "name": "medstudy",
   "private": true,
-  "version": "0.0.0",
-  "description": "Offline medical exam review application",
-  "author": "MedStudy",
+  "version": "1.0.0",
+  "description": "Medical Flashcards and more",
+  "author": "Amir Zarghi",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -16,7 +16,7 @@
   },  "build": {
     "appId": "com.medstudy.app",
     "productName": "MedStudy",
-    "directories": { "output": "${env.LOCALAPPDATA}/MedStudyBuild" },
+    "directories": { "output": "release" },
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -25,7 +25,13 @@
     "asar": true,
     "win": {
       "target": "nsis",
-      "artifactName": "MedStudy-Setup-${version}.${ext}"
+      "artifactName": "MedStudy-Setup-${version}.${ext}",
+      "icon": "public/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
     }
   },
   "dependencies": {

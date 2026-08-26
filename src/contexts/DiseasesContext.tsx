@@ -110,36 +110,33 @@ export function DiseasesProvider({ children }: { children: ReactNode }) {
     });
 
     const result: ImportResult = { imported: 0, updated: 0, skipped: 0 };
+    const updatedDiseases = [...diseases];
 
-    setDiseases(prev => {
-      const updatedDiseases = [...prev];
-
-      for (const row of resolved) {
-        const existing = updatedDiseases.find(
-          d => d.subjectId === row.subjectId && d.chapterId === row.chapterId && d.name.toLowerCase() === row.name.toLowerCase()
-        );
-        if (existing) {
-          const mergedKw = [...new Set([...existing.keywords, ...row.keywords])];
-          const idx = updatedDiseases.findIndex(d => d.id === existing.id);
-          updatedDiseases[idx] = { ...existing, keywords: mergedKw };
-          result.updated++;
-        } else {
-          updatedDiseases.push({
-            id: uuidv4(),
-            name: row.name,
-            subjectId: row.subjectId,
-            chapterId: row.chapterId,
-            keywords: row.keywords,
-          });
-          result.imported++;
-        }
+    for (const row of resolved) {
+      const existingIndex = updatedDiseases.findIndex(
+        d => d.subjectId === row.subjectId && d.chapterId === row.chapterId && d.name.toLowerCase() === row.name.toLowerCase()
+      );
+      if (existingIndex !== -1) {
+        const existing = updatedDiseases[existingIndex];
+        const mergedKw = [...new Set([...existing.keywords, ...row.keywords])];
+        updatedDiseases[existingIndex] = { ...existing, keywords: mergedKw };
+        result.updated++;
+      } else {
+        updatedDiseases.push({
+          id: uuidv4(),
+          name: row.name,
+          subjectId: row.subjectId,
+          chapterId: row.chapterId,
+          keywords: row.keywords,
+        });
+        result.imported++;
       }
+    }
 
-      return updatedDiseases;
-    });
+    setDiseases(updatedDiseases);
 
     return result;
-  }, []);
+  }, [diseases]);
 
   const exportDiseases = useCallback((subjects: Subject[]) => {
     const subjectMap = new Map(subjects.map(s => [s.id, s]));
