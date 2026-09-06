@@ -8,7 +8,7 @@
   ```
   b60d4372cd9adb2cd7cbd3cb47e4ca8a2b56cf79923971cc5f6063b28056271b
   ```
-- **Support contact:** `____________________________` (add a support email or issue URL)
+- **Support contact:** `amirrx53@protonmail.com` (add a support email or issue URL)
 
 ## About
 
